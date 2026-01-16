@@ -2,7 +2,7 @@
 
 set -e
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-. ../../lib/text.sh
+. ../../autolib/min/text.sh
 
 doc='aaa
 bbb

@@ -1,16 +1,13 @@
 #!/bin/sh
 
-test "${BASE_SOURCED=-}" = 'true' || {
-	printf %s\\n 'base must be sourced'
-	return 1
-}
+PIXIE_TEXT_SOURCED=true
 
-Text()
+PixieText()
 {
 	case "$1" in
 	ensure-line)
 		(
-			_kvargs_to_var "$@" __text_ensure_line_
+			PixieArgs kv-to-var "$@" __text_ensure_line_
 			if test "${1:-}" = '-' || test "${__text_ensure_line_in:-}" = '-' || test -z "${__text_ensure_line_in:-}"; then
 				__text_ensure_line_in=$(cat)
 			fi
@@ -50,3 +47,7 @@ Text()
 		;;
 	esac
 }
+
+if test "${PIXIE_ALIAS:-true}" = 'true'; then
+	alias Text=PixieText
+fi

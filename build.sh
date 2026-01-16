@@ -3,14 +3,15 @@
 set -e
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 cd ./src/lib/
+LC_ALL=C
 
-for el in ./base/*.sh; do
+for el in ./*.sh; do
 	. "$el"
 done
 
 build()
 (
-	_kvargs_to_var "$@" _
+	PixieArgs kv-to-var "$@" _
 	set --
 
 	while IFS='' read entry; do
@@ -32,33 +33,24 @@ build()
 	fi
 
 	if test -n "${_subdir:-}"; then
-		target="../../lib/$_subdir/$_lib"
+		target="../../autolib/$_subdir/$_lib"
 	else
-		target="../../lib/$_lib"
+		target="../../autolib/$_lib"
 	fi
 
 	awk '{
 		if(NR==1 && /^#!/) {SB=$0; print}
-		if($0 != SB) {print}
+		# if($0 != SB) {print}
+		if(NR>1 && $0 !~ /^[[:blank:]]*#/) {print}
 	}' "$@" | tee "$target" >/dev/null
 )
 
-build require=base lib=base.sh
-build require=base lib=ext.sh
-build require=base:. lib=all.sh
-
-build require=base lib=math.sh
-build require=base lib=string.sh
-build require=base lib=text.sh
+build require=. lib=pixie.sh
 
 # min
 
-build lib=math.sh subdir=min
-build require=base/_.sh:base/_kvargs_to_var.sh lib=string.sh subdir=min
-build require=base/_.sh:base/_kvargs_to_var.sh lib=text.sh subdir=min
-
-# ext
-
-build require=base:ext.sh lib=math.sh subdir=ext
-build require=base:ext.sh lib=string.sh subdir=ext
-build require=base:ext.sh lib=text.sh subdir=ext
+build require=%pixie.sh:_args.sh:_assign.sh:_is.sh:string.sh subdir=min lib=pixie.sh
+build require=%pixie.sh:_args.sh:_assign.sh:_is.sh:string.sh subdir=min lib=coll.sh
+build subdir=min lib=math.sh
+build require=%pixie.sh:_args.sh subdir=min lib=string.sh
+build require=%pixie.sh:_args.sh subdir=min lib=text.sh

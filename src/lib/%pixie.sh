@@ -1,35 +1,60 @@
 #!/bin/sh
 
-BASE_SOURCED=true
+PIXIE_SOURCED=true
 
 NEWLINE='
 '
 TABULATOR='	'
+: ${TMPDIR:=/tmp}
 
-_kvargs_to_var()
+# needs to be first
+which()
 {
-	while test $# -gt 1; do
-		# 1: current pair
-		# ...: rest pairs
-		# $#: prefix
-		set -- "${1%%=*}" "${1#*=}" "$(eval printf %s\\\\n "\$$#")" "$@"
-		# 1: current pair key
-		# 2: current pair value
-		# 3: prefix
-		# 4: current pair
-		# ...: rest pairs
-		# $#: prefix
-
-		if test "$1" != "$4"; then
-			eval "${3}${1}=\$2"
+	while IFS= read -r entry; do
+		if test -f "$entry/$1"; then
+			printf '%s\n' "$entry/$1"
+			return 0
 		fi
+	done <<-EOF
+		$(printf '%s\n' "$PATH" | tr : "$NEWLINE")
+	EOF
+	return 1
+}
 
-		for i in 1 2 3 4; do
-			shift
-		done
-		# ...: rest pairs
-		# $#: prefix
-	done
+loop()
+{
+	while IFS='' read -r "${1:-}"; do
+		"${3:-}"
+	done <<-EOF
+		$(printf '%s\n' "$2")
+	EOF
+}
+
+nloop()
+{
+	PixieArgs kv-to-var "$@" __nloop_
+	while IFS='' read -r "${__nloop_var:-entry}"; do
+		"${__nloop_fn:-_}"
+	done <<-EOF
+		$(printf '%s\n' "$__nloop_list")
+	EOF
+	unset __nloop_var __nloop_list __nloop_fn
+}
+
+prnl()
+{
+	if test $# -eq 0; then
+		set -- "$(cat)"
+	fi
+	printf -- %s\\n "$@"
+}
+
+prn()
+{
+	if test $# -eq 0; then
+		set -- "$(cat)"
+	fi
+	prnl "$@" | paste -sd' '
 }
 
 rand()
@@ -80,15 +105,7 @@ if ! which seq >/dev/null; then
 	)
 fi
 
-which()
+status()
 {
-	while IFS= read -r entry; do
-		if test -f "$entry/$1"; then
-			printf '%s\n' "$entry/$1"
-			return 0
-		fi
-	done <<-EOF
-		$(printf '%s\n' "$PATH" | tr : "$NEWLINE")
-	EOF
-	return 1
+	return ${1:-$?}
 }

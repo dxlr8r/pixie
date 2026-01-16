@@ -1,35 +1,59 @@
 #!/bin/sh
 
-BASE_SOURCED=true
+PIXIE_SOURCED=true
 
 NEWLINE='
 '
 TABULATOR='	'
+: ${TMPDIR:=/tmp}
 
-_kvargs_to_var()
+which()
 {
-	while test $# -gt 1; do
-		# 1: current pair
-		# ...: rest pairs
-		# $#: prefix
-		set -- "${1%%=*}" "${1#*=}" "$(eval printf %s\\\\n "\$$#")" "$@"
-		# 1: current pair key
-		# 2: current pair value
-		# 3: prefix
-		# 4: current pair
-		# ...: rest pairs
-		# $#: prefix
-
-		if test "$1" != "$4"; then
-			eval "${3}${1}=\$2"
+	while IFS= read -r entry; do
+		if test -f "$entry/$1"; then
+			printf '%s\n' "$entry/$1"
+			return 0
 		fi
+	done <<-EOF
+		$(printf '%s\n' "$PATH" | tr : "$NEWLINE")
+	EOF
+	return 1
+}
 
-		for i in 1 2 3 4; do
-			shift
-		done
-		# ...: rest pairs
-		# $#: prefix
-	done
+loop()
+{
+	while IFS='' read -r "${1:-}"; do
+		"${3:-}"
+	done <<-EOF
+		$(printf '%s\n' "$2")
+	EOF
+}
+
+nloop()
+{
+	PixieArgs kv-to-var "$@" __nloop_
+	while IFS='' read -r "${__nloop_var:-entry}"; do
+		"${__nloop_fn:-_}"
+	done <<-EOF
+		$(printf '%s\n' "$__nloop_list")
+	EOF
+	unset __nloop_var __nloop_list __nloop_fn
+}
+
+prnl()
+{
+	if test $# -eq 0; then
+		set -- "$(cat)"
+	fi
+	printf -- %s\\n "$@"
+}
+
+prn()
+{
+	if test $# -eq 0; then
+		set -- "$(cat)"
+	fi
+	prnl "$@" | paste -sd' '
 }
 
 rand()
@@ -43,7 +67,6 @@ rand()
 	elif test -c /dev/urandom -a -r /dev/urandom; then
 		floor10=$(($1 / 10))
 		buf=$(od -An -tu4 -N$((4 * ($floor10 + 2))) /dev/urandom | tr -dc '0-9')
-		# should in practice never happen
 		while test "${#buf}" -lt "$1"; do
 			buf=0${buf}
 		done
@@ -80,30 +103,78 @@ if ! which seq >/dev/null; then
 	)
 fi
 
-which()
+status()
 {
-	while IFS= read -r entry; do
-		if test -f "$entry/$1"; then
-			printf '%s\n' "$entry/$1"
-			return 0
-		fi
-	done <<-EOF
-		$(printf '%s\n' "$PATH" | tr : "$NEWLINE")
-	EOF
-	return 1
+	return ${1:-$?}
 }
 
-test "${BASE_SOURCED=-}" = 'true' || {
-	printf %s\\n 'base must be sourced'
-	return 1
+PixieArgs()
+{
+	case "$1" in
+	kv-to-var)
+		shift
+
+		set -- "$(eval "printf '%s\n' \${$#}")" "$@"
+		eval "${1}0=0"
+		shift
+
+		set -- "$@" $#
+		while test $# -gt 2; do
+			set -- \
+				"${1%%=*}" \
+				"${1#*=}" \
+				"$(eval "printf '%s\n' \${$(($# - 1))}")" \
+				"$(eval "printf '%s\n' \${$#}")" \
+				"$@"
+
+			if test "$1" != "$5"; then
+				case "${1-}" in
+				[A-Za-z_] | [A-Za-z_][A-Za-z0-9_]*) : ;;
+				*) return 1 ;;
+				esac
+				case "${3-}" in
+				[A-Za-z_] | [A-Za-z_][A-Za-z0-9_]*) : ;;
+				*) return 1 ;;
+				esac
+
+				eval "${3}${1}=\$2"
+
+				eval "${3}0=\$((\$4 - \$# + 6))"
+			elif test "$5" = '--'; then
+				eval "${3}0=\$((\$4 - \$# + 6))"
+				return 0
+			else
+				return 0
+			fi
+
+			shift 5
+
+		done
+		;;
+	to-elist)
+		shift
+		(
+			PixieArgs kv-to-var "$@" __pixie_args_to_elist_
+			shift "$__pixie_args_to_elist_0"
+			shift "${__pixie_args_to_elist_shift:-0}"
+			PixieString esc "$@"
+		)
+		;;
+	esac
 }
 
-Text()
+if test "${PIXIE_ALIAS:-true}" = 'true'; then
+	alias Args=PixieArgs
+fi
+
+PIXIE_TEXT_SOURCED=true
+
+PixieText()
 {
 	case "$1" in
 	ensure-line)
 		(
-			_kvargs_to_var "$@" __text_ensure_line_
+			PixieArgs kv-to-var "$@" __text_ensure_line_
 			if test "${1:-}" = '-' || test "${__text_ensure_line_in:-}" = '-' || test -z "${__text_ensure_line_in:-}"; then
 				__text_ensure_line_in=$(cat)
 			fi
@@ -112,25 +183,20 @@ Text()
 			match_re=$__text_ensure_line_match_re
 			value=$__text_ensure_line_value
 
-			# if already defined, escape early
 			if printf %s\\n "$in" | grep -Fxq "$value"; then
 				return 0
 			fi
 
-			# search for match_re
 			append=0
 			line_number=$(printf %s\\n "$in" | awk -v REGEX="$match_re" '{if($0 ~ REGEX) {print NR; exit}}')
 
-			# regex not found, search for after
 			if test -z "$line_number"; then
 				line_number=$(printf %s\\n "$in" | awk -v NEEDLE="$after" '{if($0 == NEEDLE) {print NR + 1; exit}}')
 				append=1
 			fi
 
-			# if neither searches succeed, error
 			test -n "$line_number" || return 1
 
-			# insert/replace line in $file
 			printf %s\\n "$in" | awk -v VALUE="$value" -v LINENUMBER="$line_number" -v APPEND="$append" '
 			{
 				if (NR == LINENUMBER) {
@@ -143,3 +209,7 @@ Text()
 		;;
 	esac
 }
+
+if test "${PIXIE_ALIAS:-true}" = 'true'; then
+	alias Text=PixieText
+fi
