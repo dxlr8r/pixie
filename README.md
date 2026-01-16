@@ -67,7 +67,7 @@ String strim '  hello    world   '
 => hello world
 ```
 
-ltrim, rtrim and trim avaiable as well.
+ltrim, rtrim and trim available as well.
 
 # named function arguments
 
@@ -139,3 +139,7 @@ coll my_coll get-value 'status reactor'
 ```
 
 And so much more. You can add, add and remove from top/bottom/index and so on. Values can contain newline, tabs, etc. without any issues.
+
+# And so much more
+
+I will improve the README in time, but for now take a look in `test/lib`, not 100% complete either though.
