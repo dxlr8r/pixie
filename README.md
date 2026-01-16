@@ -53,6 +53,13 @@ Below is a list of all available functions:
 -	max | maximum
 -	min | minimum
 
+You can also nest the functions, like so:
+
+```sh
+madd 1300 100 | msub - 63
+=> 1337
+```
+
 ## String
 
 To replace a value in a string:
