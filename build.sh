@@ -2,6 +2,8 @@
 
 set -e
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+VERSION=$(cat VERSION)
+
 cd ./src/lib/
 LC_ALL=C
 
@@ -9,10 +11,10 @@ for el in ./*.sh; do
 	. "$el"
 done
 
-here legal <<-'EOF'
+here legal <<-EOF
 	# SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
 	# SPDX-License-Identifier: MIT
-	# Version: 0.0.1-alpha
+	# Version: $VERSION
 EOF
 
 build()
