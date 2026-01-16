@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
+# SPDX-License-Identifier: MIT
+# Version: 0.0.1-alpha
 
 PIXIE_SOURCED=true
 
@@ -31,13 +34,13 @@ loop()
 
 nloop()
 {
-	PixieArgs kv-to-var "$@" __nloop_
-	while IFS='' read -r "${__nloop_var:-entry}"; do
-		"${__nloop_fn:-_}"
+	PixieArgs kv-to-var "$@" __pixie_nloop_
+	while IFS='' read -r "${__pixie_nloop_var:-entry}"; do
+		"${__pixie_nloop_fn:-_}"
 	done <<-EOF
-		$(printf '%s\n' "$__nloop_list")
+		$(printf '%s\n' "$__pixie_nloop_list")
 	EOF
-	unset __nloop_var __nloop_list __nloop_fn
+	unset __pixie_nloop_var __pixie_nloop_list __pixie_nloop_fn
 }
 
 prnl()
@@ -174,17 +177,21 @@ PixieText()
 	case "$1" in
 	ensure-line)
 		(
-			PixieArgs kv-to-var "$@" __text_ensure_line_
-			if test "${1:-}" = '-' || test "${__text_ensure_line_in:-}" = '-' || test -z "${__text_ensure_line_in:-}"; then
-				__text_ensure_line_in=$(cat)
+			shift
+			PixieArgs kv-to-var "$@" __pixie_text_ensure_line_
+
+			: ${__pixie_text_ensure_line_in:=-}
+			if test "${__pixie_text_ensure_line_in:-}" = '-'; then
+				__pixie_text_ensure_line_in=$(cat)
 			fi
-			in=$__text_ensure_line_in
-			after=$__text_ensure_line_after
-			match_re=$__text_ensure_line_match_re
-			value=$__text_ensure_line_value
+
+			in=$__pixie_text_ensure_line_in
+			after=$__pixie_text_ensure_line_after
+			match_re=$__pixie_text_ensure_line_match_re
+			value=$__pixie_text_ensure_line_value
 
 			if printf %s\\n "$in" | grep -Fxq "$value"; then
-				return 0
+				exit 0
 			fi
 
 			append=0
@@ -195,7 +202,7 @@ PixieText()
 				append=1
 			fi
 
-			test -n "$line_number" || return 1
+			test -n "$line_number" || exit 1
 
 			printf %s\\n "$in" | awk -v VALUE="$value" -v LINENUMBER="$line_number" -v APPEND="$append" '
 			{
@@ -205,7 +212,7 @@ PixieText()
 				}
 				else { print $0 }
 			}'
-		)
+		) || return $?
 		;;
 	esac
 }

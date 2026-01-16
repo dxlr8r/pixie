@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
+# SPDX-License-Identifier: MIT
+# Version: 0.0.1-alpha
 
 PIXIE_MATH_SOURCED=true
 

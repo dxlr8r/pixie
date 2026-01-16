@@ -7,18 +7,22 @@ PixieText()
 	case "$1" in
 	ensure-line)
 		(
-			PixieArgs kv-to-var "$@" __text_ensure_line_
-			if test "${1:-}" = '-' || test "${__text_ensure_line_in:-}" = '-' || test -z "${__text_ensure_line_in:-}"; then
-				__text_ensure_line_in=$(cat)
+			shift
+			PixieArgs kv-to-var "$@" __pixie_text_ensure_line_
+
+			: ${__pixie_text_ensure_line_in:=-}
+			if test "${__pixie_text_ensure_line_in:-}" = '-'; then
+				__pixie_text_ensure_line_in=$(cat)
 			fi
-			in=$__text_ensure_line_in
-			after=$__text_ensure_line_after
-			match_re=$__text_ensure_line_match_re
-			value=$__text_ensure_line_value
+
+			in=$__pixie_text_ensure_line_in
+			after=$__pixie_text_ensure_line_after
+			match_re=$__pixie_text_ensure_line_match_re
+			value=$__pixie_text_ensure_line_value
 
 			# if already defined, escape early
 			if printf %s\\n "$in" | grep -Fxq "$value"; then
-				return 0
+				exit 0
 			fi
 
 			# search for match_re
@@ -32,7 +36,7 @@ PixieText()
 			fi
 
 			# if neither searches succeed, error
-			test -n "$line_number" || return 1
+			test -n "$line_number" || exit 1
 
 			# insert/replace line in $file
 			printf %s\\n "$in" | awk -v VALUE="$value" -v LINENUMBER="$line_number" -v APPEND="$append" '
@@ -43,7 +47,7 @@ PixieText()
 				}
 				else { print $0 }
 			}'
-		)
+		) || return $?
 		;;
 	esac
 }

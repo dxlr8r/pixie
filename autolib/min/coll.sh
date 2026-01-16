@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
+# SPDX-License-Identifier: MIT
+# Version: 0.0.1-alpha
 
 PIXIE_SOURCED=true
 
@@ -31,13 +34,13 @@ loop()
 
 nloop()
 {
-	PixieArgs kv-to-var "$@" __nloop_
-	while IFS='' read -r "${__nloop_var:-entry}"; do
-		"${__nloop_fn:-_}"
+	PixieArgs kv-to-var "$@" __pixie_nloop_
+	while IFS='' read -r "${__pixie_nloop_var:-entry}"; do
+		"${__pixie_nloop_fn:-_}"
 	done <<-EOF
-		$(printf '%s\n' "$__nloop_list")
+		$(printf '%s\n' "$__pixie_nloop_list")
 	EOF
-	unset __nloop_var __nloop_list __nloop_fn
+	unset __pixie_nloop_var __pixie_nloop_list __pixie_nloop_fn
 }
 
 prnl()
@@ -241,6 +244,14 @@ PixieIs()
 			shift
 		done
 		;;
+	visible)
+		shift
+		while test "$#" -gt 0; do
+			printf %s "$1" | tr -d '[:space:]' | test -n "$(cat)" || return $?
+			shift
+		done
+
+		;;
 	unsigned-int)
 		shift
 		while test $# -gt 0; do
@@ -301,90 +312,59 @@ PixieString()
 		printf '%b' "$@"
 		;;
 
-	ltrim | rtrim | trim | strim)
-		__pixie_string_trim_type=$1
+	ltrim)
 		shift
-		PixieArgs kv-to-var "$@" __pixie_string_trim_
-		shift "$__pixie_string_trim_0"
-
-		if test "$#" -eq 0; then
-			set -- "$(cat)"
-		fi
-
-		if test "${__pixie_string_trim_esc:-false}" = 'true'; then
-			while test $# -gt 0; do
-				case "${__pixie_string_trim_type:-strim}" in
-				ltrim)
-					PixieString esc "${1#"${1%%[![:space:]]*}"}"
-					;;
-				rtrim)
-					PixieString esc "${1%"${1##*[![:space:]]}"}"
-					;;
-				trim)
-					(
-						s=$1
-						s=${s#"${s%%[![:space:]]*}"}
-						s=${s%"${s##*[![:space:]]}"}
-						PixieString esc "$s"
-					)
-					;;
-				strim)
-					(
-						set -f
-						set -- $1
-						PixieString esc "$*"
-					)
-					;;
-				esac
-				shift
-			done
-		else
-			while test $# -gt 0; do
-				case "${__pixie_string_trim_type:-strim}" in
-				ltrim)
-					printf %s\\n "${1#"${1%%[![:space:]]*}"}"
-					;;
-				rtrim)
-					printf %s\\n "${1%"${1##*[![:space:]]}"}"
-					;;
-				trim)
-					(
-						s=$1
-						s=${s#"${s%%[![:space:]]*}"}
-						s=${s%"${s##*[![:space:]]}"}
-						printf %s\\n "$s"
-					)
-					;;
-				strim)
-					(
-						set -f
-						set -- $1
-						printf %s\\n "$*"
-					)
-					;;
-				esac
-				shift
-			done
-		fi
-
-		unset __pixie_string_trim_type __pixie_string_trim_0 __pixie_string_trim_esc
+		while test $# -gt 0; do
+			printf %s\\n "${1#"${1%%[![:space:]]*}"}"
+			shift
+		done
+		;;
+	rtrim)
+		shift
+		while test $# -gt 0; do
+			printf %s\\n "${1%"${1##*[![:space:]]}"}"
+			shift
+		done
+		;;
+	trim)
+		shift
+		while test $# -gt 0; do
+			(
+				s=$1
+				s=${s#"${s%%[![:space:]]*}"}
+				s=${s%"${s##*[![:space:]]}"}
+				printf %s\\n "$s"
+			)
+			shift
+		done
+		;;
+	strim)
+		shift
+		while test $# -gt 0; do
+			(
+				set -f
+				set -- $1
+				printf %s\\n "$*"
+			)
+			shift
+		done
 		;;
 
 	replace)
 		(
 			shift
-			PixieArgs kv-to-var "$@" __str_replace_
-			shift $__str_replace_0
+			PixieArgs kv-to-var "$@" __pixie_string_replace_
+			shift $__pixie_string_replace_0
 
-			: ${__str_replace_value=$1}
-			: ${__str_replace_match:=$2}
-			: ${__str_replace_in:=$3}
+			: ${__pixie_string_replace_value=$1}
+			: ${__pixie_string_replace_match:=$2}
+			: ${__pixie_string_replace_in:=$3}
 
-			case "$__str_replace_in" in
-			- | '') __str_replace_in=$(cat) ;;
+			case "$__pixie_string_replace_in" in
+			- | '') __pixie_string_replace_in=$(cat) ;;
 			esac
 
-			awk -v VALUE="$__str_replace_value" -v MATCH="$__str_replace_match" -v IN="$__str_replace_in" '
+			awk -v VALUE="$__pixie_string_replace_value" -v MATCH="$__pixie_string_replace_match" -v IN="$__pixie_string_replace_in" '
 				BEGIN {
 					VALUE_L=length(VALUE);
 					for(i=1; i <= length(IN);) {
@@ -415,7 +395,6 @@ fi
 
 PIXIE_COLL_SOURCED=true
 
-
 PixieColl()
 {
 
@@ -442,68 +421,11 @@ PixieColl()
 			) || return $?
 			;;
 
-
 		_grepv)
 			shift
 			(
 				pat=$(printf '%s\n' "$1" | sed 's/Fx/==/' | sed 's/E/~/')
 				cat | awk -v haystack="$2" 'BEGIN { needle=0 }; { if ($0 '"$pat"' haystack ) { needle=1 } else { print }}; END { exit !needle }' || exit $?
-			) || return $?
-			;;
-
-		_if-last-key-is-int-remove-it)
-			shift
-			awk -v key="$1" -v OFS='\t' 'BEGIN { $0 = key; sub(/[ \t]*$/, "", $0); if ($NF ~ /^[0-9]+$/) {$NF=""; print; exit 0} else {exit 1}}' || return $?
-			;;
-
-		_ilist-add-or-rm)
-			shift
-			(
-				action=$1
-				key=$2
-				value=$3
-				obj=$4
-
-				qty_keys=$(printf '%s' "$key" | tr "$TABULATOR" "$NEWLINE" | wc -l | tr -d ' ')
-				rkey=$(PixieColl % _if-last-key-is-int-remove-it "$key") || exit $?
-				regex="^${rkey}[0-9]+\t"
-
-				idx=$(printf '%s' "$key" | awk -v FS='\t' '{print $(NF-1)}')
-
-				fallback_max_idx=$(printf '%s0\t\n' "$rkey")
-				max_idx=$(printf '%s\n' "$fallback_max_idx" "$obj" | grep -E "$regex" | sort -nk$qty_keys | tail -n1 \
-					| awk -v FS='\t' -v qty_keys="$qty_keys" '{print $(qty_keys)}')
-
-				if test "$action" = "add"; then
-					alter_rows='
-					{
-						if ($0 ~ regex && $(qty_keys) >= idx)
-							{ $(qty_keys)=$(qty_keys)+1; print }
-						else print
-					}'
-				fi
-
-				if test "$action" = "rm"; then
-					alter_rows='
-					{
-						if ($0 ~ regex && $(qty_keys) > idx)
-							{ $(qty_keys)=$(qty_keys)-1; print }
-						else print
-					}'
-				fi
-
-				if test $idx -eq 0; then
-					test "$action" = "add" && idx=$((max_idx + 1)) || :
-					test "$action" = "rm" && idx=$max_idx || :
-					key=$(printf '%s' "$key" | awk -v FS='\t' -v OFS='\t' -v new_idx="$idx" -v qty_keys="$qty_keys" '$(qty_keys) = new_idx')
-				fi
-
-
-				test "$action" = "rm" && obj=$(printf '%s' "$obj" | grep -vE "^$key") || :
-
-				test -n "$obj" && printf '%s\n' "$obj" | awk -v FS='\t' -v OFS='\t' -v qty_keys="$qty_keys" -v idx="$idx" -v regex="$regex" "$alter_rows" || :
-
-				test "$action" = "add" && printf "%s%s\n" "$key" "$value" || :
 			) || return $?
 			;;
 		*)
@@ -522,9 +444,6 @@ PixieColl()
 				PixieAssign if-fn "$1" PixieColl "$1" _add-value-at "${3-}" 0 "$(cat | PixieString esc)" || return $?
 			fi
 			;;
-
-
-
 
 		add-value-at | add-at | +i)
 			PixieIs variable-name "${1-}" || return $?
@@ -565,6 +484,7 @@ PixieColl()
 										if(IDX >= 0 && IDX <= 1) { print 0 }
 									}
 									else if(OP == "rm") { exit 1 }
+									else { exit 1 }
 								}
 								else if(IDX > KNR) { exit 1 }
 								else { print LINE }
@@ -626,13 +546,10 @@ PixieColl()
 
 				eval obj=\$"$1"
 
-				if test "$ARGUS_NILIST" && PixieColl % _if-last-key-is-int-remove-it "$key" >/dev/null; then
-					PixieColl % _ilist-add-or-rm "rm" "$key" "$value" "$obj" || exit $?
-				else
-					if test -n "$obj"; then
-						printf '%s' "$obj" | PixieColl % _grepv E "^$key" || exit $?
-					fi
+				if test -n "$obj"; then
+					printf '%s' "$obj" | PixieColl % _grepv E "^$key" || exit $?
 				fi
+
 			) || return $?
 			;;
 
@@ -679,37 +596,44 @@ PixieColl()
 				PixieIs variable-name "${1-}" || test "${1-}" = '-' || exit $?
 				key=$(PixieColl % _normalise-key "${3-}" allow-empty) || exit $?
 				depth="${4:-0}"
-				PixieIs unsigned-int "$4"
+
+				IFS=':' read -r min_depth max_depth <<-EOF
+					$(printf %s "$depth")
+				EOF
+				PixieIs unsigned-int "$min_depth" "$max_depth"
+				case "$depth" in
+				*:) max_depth=0 ;;
+				*:*) : ;;
+				*) max_depth="$min_depth" ;;
+				esac
 
 				if test "$1" = "-"; then
 					obj=$(cat)
 				else
 					eval obj=\$"$1"
 				fi
-				if
-					test -n "$ARGUS_NILIST" \
-						&& rkey=$(PixieColl % _if-last-key-is-int-remove-it "$key") \
-						&& awk -v key="$key" 'BEGIN { $0 = key; if ($NF != 0) {exit 1} }'
-				then
-					regex="^${rkey}[-]?[0-9]+[[:blank:]]"
-					printf '%s' "$obj" | grep -E "$regex" | tail -n1 | awk '{print} END { exit !NR }' || exit $?
+
+				if test "$((min_depth + max_depth))" -eq 0; then
+					printf '%s' "$obj" | grep -E "^$key" || exit $?
 				else
-					if test "$depth" -eq 0; then
-						printf '%s' "$obj" | grep -E "^$key" || exit $?
-					else
-						printf '%s' "$obj" | awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v DEPTH="$depth" \
-							'{if($0 ~ ("^" KEY) && NF == (DEPTH + 1)) {print}}'
-					fi
+					printf '%s' "$obj" \
+						| awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v MIN="$min_depth" -v MAX="$max_depth" \
+							'{
+									if(MAX > 0) {
+										if(NF >= (MIN + 1) && NF <= (MAX + 1) && index($0, KEY) == 1){ print }
+									}
+									else {
+										if(NF >= (MIN + 1) && index($0, KEY) == 1){ print }
+									}
+								}'
 				fi
 			) || return $?
 			;;
 
 		get-value | v | @v)
 			(
-				out=$(PixieColl "${1-}" get "${3-}" 0) || exit $?
 				keys=$(printf '%s' "$3" | awk '{print NF}')
-
-				printf %s "$out" | awk -v rkey="$3" -v keys="$keys" -v FS='\t' '{if (NF == keys+1 || rkey == "") { print $NF }} END { exit !NR }' || exit $?
+				PixieColl "${1-}" get "${3-}" "$keys" | awk -v FS='\t' '{print $NF}' || exit $?
 			) || return $?
 			;;
 
@@ -744,36 +668,6 @@ PixieColl()
 			(
 				out=$(PixieColl "$1" get "${3-}" "${4:-0}") || exit $?
 				printf %s "$out" | awk '{print NR} END { exit !NR }' || exit $?
-			) || return $?
-			;;
-
-		pack-ilist | pack)
-			test "$ARGUS_NILIST" || return 1
-			PixieAssign if-fn "$1" PixieColl "$1" _pack-ilist "${3-}" || return $?
-			;;
-
-		_pack-ilist)
-			(
-				key=$(PixieColl % _normalise-key "$3") || exit $?
-
-				eval obj=\$"$1"
-				keys=$(printf '%s' "$key" | tr "$TABULATOR" "$NEWLINE" | wc -l)
-				ffkey=$((keys + 1))
-				sfkey=$((keys + 2))
-				regex="^${key}[-]?[0-9]+[[:blank:]]"
-
-				enumerate=$(printf '%s' "$obj" | grep -E "$regex" | sort -nk$ffkey)
-				printf '%s' "$enumerate" | awk -v ffkey="$ffkey" -v sfkey="$sfkey" -v FS='\t' -v OFS='\t' \
-					'# init enumerator, previous, current & current next column
-					BEGIN { e=0; pcol=e; ccol=e; cncol=e; }
-					{
-						ccol=$(ffkey);
-						cncol=$(sfkey);
-						if(e == 0 || ccol > pcol || cncol !~ /^[0-9]+$/ ) { e=e+1 };
-						$(ffkey)=e; pcol=ccol; print
-					}'
-
-				printf '%s' "$obj" | grep -vE "$regex"
 			) || return $?
 			;;
 		*)

@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
+# SPDX-License-Identifier: MIT
+# Version: 0.0.1-alpha
 
 PIXIE_SOURCED=true
 
@@ -31,13 +34,13 @@ loop()
 
 nloop()
 {
-	PixieArgs kv-to-var "$@" __nloop_
-	while IFS='' read -r "${__nloop_var:-entry}"; do
-		"${__nloop_fn:-_}"
+	PixieArgs kv-to-var "$@" __pixie_nloop_
+	while IFS='' read -r "${__pixie_nloop_var:-entry}"; do
+		"${__pixie_nloop_fn:-_}"
 	done <<-EOF
-		$(printf '%s\n' "$__nloop_list")
+		$(printf '%s\n' "$__pixie_nloop_list")
 	EOF
-	unset __nloop_var __nloop_list __nloop_fn
+	unset __pixie_nloop_var __pixie_nloop_list __pixie_nloop_fn
 }
 
 prnl()
@@ -241,6 +244,14 @@ PixieIs()
 			shift
 		done
 		;;
+	visible)
+		shift
+		while test "$#" -gt 0; do
+			printf %s "$1" | tr -d '[:space:]' | test -n "$(cat)" || return $?
+			shift
+		done
+
+		;;
 	unsigned-int)
 		shift
 		while test $# -gt 0; do
@@ -301,90 +312,59 @@ PixieString()
 		printf '%b' "$@"
 		;;
 
-	ltrim | rtrim | trim | strim)
-		__pixie_string_trim_type=$1
+	ltrim)
 		shift
-		PixieArgs kv-to-var "$@" __pixie_string_trim_
-		shift "$__pixie_string_trim_0"
-
-		if test "$#" -eq 0; then
-			set -- "$(cat)"
-		fi
-
-		if test "${__pixie_string_trim_esc:-false}" = 'true'; then
-			while test $# -gt 0; do
-				case "${__pixie_string_trim_type:-strim}" in
-				ltrim)
-					PixieString esc "${1#"${1%%[![:space:]]*}"}"
-					;;
-				rtrim)
-					PixieString esc "${1%"${1##*[![:space:]]}"}"
-					;;
-				trim)
-					(
-						s=$1
-						s=${s#"${s%%[![:space:]]*}"}
-						s=${s%"${s##*[![:space:]]}"}
-						PixieString esc "$s"
-					)
-					;;
-				strim)
-					(
-						set -f
-						set -- $1
-						PixieString esc "$*"
-					)
-					;;
-				esac
-				shift
-			done
-		else
-			while test $# -gt 0; do
-				case "${__pixie_string_trim_type:-strim}" in
-				ltrim)
-					printf %s\\n "${1#"${1%%[![:space:]]*}"}"
-					;;
-				rtrim)
-					printf %s\\n "${1%"${1##*[![:space:]]}"}"
-					;;
-				trim)
-					(
-						s=$1
-						s=${s#"${s%%[![:space:]]*}"}
-						s=${s%"${s##*[![:space:]]}"}
-						printf %s\\n "$s"
-					)
-					;;
-				strim)
-					(
-						set -f
-						set -- $1
-						printf %s\\n "$*"
-					)
-					;;
-				esac
-				shift
-			done
-		fi
-
-		unset __pixie_string_trim_type __pixie_string_trim_0 __pixie_string_trim_esc
+		while test $# -gt 0; do
+			printf %s\\n "${1#"${1%%[![:space:]]*}"}"
+			shift
+		done
+		;;
+	rtrim)
+		shift
+		while test $# -gt 0; do
+			printf %s\\n "${1%"${1##*[![:space:]]}"}"
+			shift
+		done
+		;;
+	trim)
+		shift
+		while test $# -gt 0; do
+			(
+				s=$1
+				s=${s#"${s%%[![:space:]]*}"}
+				s=${s%"${s##*[![:space:]]}"}
+				printf %s\\n "$s"
+			)
+			shift
+		done
+		;;
+	strim)
+		shift
+		while test $# -gt 0; do
+			(
+				set -f
+				set -- $1
+				printf %s\\n "$*"
+			)
+			shift
+		done
 		;;
 
 	replace)
 		(
 			shift
-			PixieArgs kv-to-var "$@" __str_replace_
-			shift $__str_replace_0
+			PixieArgs kv-to-var "$@" __pixie_string_replace_
+			shift $__pixie_string_replace_0
 
-			: ${__str_replace_value=$1}
-			: ${__str_replace_match:=$2}
-			: ${__str_replace_in:=$3}
+			: ${__pixie_string_replace_value=$1}
+			: ${__pixie_string_replace_match:=$2}
+			: ${__pixie_string_replace_in:=$3}
 
-			case "$__str_replace_in" in
-			- | '') __str_replace_in=$(cat) ;;
+			case "$__pixie_string_replace_in" in
+			- | '') __pixie_string_replace_in=$(cat) ;;
 			esac
 
-			awk -v VALUE="$__str_replace_value" -v MATCH="$__str_replace_match" -v IN="$__str_replace_in" '
+			awk -v VALUE="$__pixie_string_replace_value" -v MATCH="$__pixie_string_replace_match" -v IN="$__pixie_string_replace_in" '
 				BEGIN {
 					VALUE_L=length(VALUE);
 					for(i=1; i <= length(IN);) {

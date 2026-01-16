@@ -7,13 +7,6 @@
 
 PIXIE_COLL_SOURCED=true
 
-# TODO: create List, subset of coll. We have removed possibility of optional 'key' after porting from argus. As it has some issues, especially with _rm-at (is 1 the key, or the item/index?).
-#
-# List, would just be wrapper around PixieColl, and store everything to a key called '_'. This allows for (alias list):
-# list my_list add 'foo'
-# list my_list add 'bar'
-# list my_list rm-at 2
-
 PixieColl()
 {
 	# `PixieColl` has two conflicting ways to order arguments
@@ -48,92 +41,12 @@ PixieColl()
 			) || return $?
 			;;
 
-		# if any argument is empty or only contains whitespace return 1
-		# _has_visible)
-		# 	shift
-		# 	while test "$#" -gt 0; do
-		# 		printf '%s' "$1" | awk '{if ($0 ~ /(^$|[[:space:]])/) exit 1} END {if (NR != 1) exit 3}' \
-		# 			|| return $?
-		# 		shift
-		# 	done
-		# 	;;
-
 		# like grep -v, but more suited handling of exit signals
 		_grepv)
 			shift
 			(
 				pat=$(printf '%s\n' "$1" | sed 's/Fx/==/' | sed 's/E/~/')
 				cat | awk -v haystack="$2" 'BEGIN { needle=0 }; { if ($0 '"$pat"' haystack ) { needle=1 } else { print }}; END { exit !needle }' || exit $?
-			) || return $?
-			;;
-
-		_if-last-key-is-int-remove-it)
-			shift
-			# first strip trailing tab from key, as value is not added. Then check if last key is an integer, if true remove last key
-			awk -v key="$1" -v OFS='\t' 'BEGIN { $0 = key; sub(/[ \t]*$/, "", $0); if ($NF ~ /^[0-9]+$/) {$NF=""; print; exit 0} else {exit 1}}' || return $?
-			;;
-
-		_ilist-add-or-rm)
-			shift
-			(
-				action=$1
-				key=$2
-				value=$3
-				obj=$4
-
-				# number of columns of keys
-				qty_keys=$(printf '%s' "$key" | tr "$TABULATOR" "$NEWLINE" | wc -l | tr -d ' ')
-				rkey=$(PixieColl % _if-last-key-is-int-remove-it "$key") || exit $?
-				# regex=$(printf '^%s[0-9]+\\t' "$(PixieString esc "$rkey")" | sed 's/\\t/[[:blank:]]/g')
-				regex="^${rkey}[0-9]+\t"
-
-				# requested index of entry
-				idx=$(printf '%s' "$key" | awk -v FS='\t' '{print $(NF-1)}')
-
-				# determine the highest index currently available
-				fallback_max_idx=$(printf '%s0\t\n' "$rkey")
-				max_idx=$(printf '%s\n' "$fallback_max_idx" "$obj" | grep -E "$regex" | sort -nk$qty_keys | tail -n1 \
-					| awk -v FS='\t' -v qty_keys="$qty_keys" '{print $(qty_keys)}')
-
-				if test "$action" = "add"; then
-					# increase rows
-					alter_rows='
-					{
-						if ($0 ~ regex && $(qty_keys) >= idx)
-							{ $(qty_keys)=$(qty_keys)+1; print }
-						else print
-					}'
-				fi
-
-				if test "$action" = "rm"; then
-					# decrease rows
-					alter_rows='
-					{
-						if ($0 ~ regex && $(qty_keys) > idx)
-							{ $(qty_keys)=$(qty_keys)-1; print }
-						else print
-					}'
-				fi
-
-				# check if idx is valid if not replace with max_idx
-				# if test $idx -gt $max_idx || test $idx -eq 0; then
-				if test $idx -eq 0; then
-					test "$action" = "add" && idx=$((max_idx + 1)) || :
-					test "$action" = "rm" && idx=$max_idx || :
-					key=$(printf '%s' "$key" | awk -v FS='\t' -v OFS='\t' -v new_idx="$idx" -v qty_keys="$qty_keys" '$(qty_keys) = new_idx')
-				fi
-
-				# if out of bounds, return
-				#test $idx -gt $max_idx && { printf '%s' "$obj"; return 1; } || :
-
-				# rm element
-				test "$action" = "rm" && obj=$(printf '%s' "$obj" | grep -vE "^$key") || :
-
-				# print obj and reorder
-				test -n "$obj" && printf '%s\n' "$obj" | awk -v FS='\t' -v OFS='\t' -v qty_keys="$qty_keys" -v idx="$idx" -v regex="$regex" "$alter_rows" || :
-
-				# add element
-				test "$action" = "add" && printf "%s%s\n" "$key" "$value" || :
 			) || return $?
 			;;
 		*)
@@ -157,40 +70,10 @@ PixieColl()
 			fi
 			;;
 
-		# subshell to keep variables local
-		# _add-value)
-		# 	(
-		# 		key=$(PixieColl % _normalise-key "$3") || exit $?
-
-		# 		# set obj to variable named $1
-		# 		eval obj=\$"$1"
-		# 		shift 3
-
-		# 		if test "$ARGUS_NILIST" && PixieColl % _if-last-key-is-int-remove-it "$key" >/dev/null; then
-		# 			# value=$(PixieString esc "$1")
-		# 			# PixieColl % _ilist-add-or-rm "add" "$key" "$value" "$obj" || exit $?
-		# 			:
-		# 		else
-		# 			test -n "$obj" && printf '%s\n' "$obj" || :
-		# 			while test $# -gt 0; do
-		# 				value=$(PixieString esc "$1")
-		# 				printf "%s%s\n" "$key" "$value"
-		# 				shift
-		# 			done
-		# 		fi
-		# 	) || return $?
-		# 	# status || {
-		# 	# 	eval printf %s \"\$$1\"
-		# 	# 	return $?
-		# 	# }
-		# 	;;
-
 		# my_var add-value-at 'a b' 1 'hello'
 		add-value-at | add-at | +i)
 			PixieIs variable-name "${1-}" || return $?
 			if test -n "${5+x}"; then
-				# PixieArgs to-elist shift=4 -- "$@"
-				# PixieColl "$1" _add-value-at "$3" "$4" "$(PixieArgs to-elist shift=4 -- "$@")"
 				PixieAssign if-fn "$1" PixieColl "$1" _add-value-at "$3" "$4" "$(PixieArgs to-elist shift=4 -- "$@")" || return $?
 			else
 				PixieAssign if-fn "$1" PixieColl "$1" _add-value-at "${3-}" "${4-}" "$(cat | PixieString esc)" || return $?
@@ -231,6 +114,7 @@ PixieColl()
 									}
 									# not found, exit 1
 									else if(OP == "rm") { exit 1 }
+									else { exit 1 }
 								}
 								# out of bounds
 								else if(IDX > KNR) { exit 1 }
@@ -312,14 +196,10 @@ PixieColl()
 
 				eval obj=\$"$1"
 
-				# if the last key is an int, fill it's gap
-				if test "$ARGUS_NILIST" && PixieColl % _if-last-key-is-int-remove-it "$key" >/dev/null; then
-					PixieColl % _ilist-add-or-rm "rm" "$key" "$value" "$obj" || exit $?
-				else
-					if test -n "$obj"; then
-						printf '%s' "$obj" | PixieColl % _grepv E "^$key" || exit $?
-					fi
+				if test -n "$obj"; then
+					printf '%s' "$obj" | PixieColl % _grepv E "^$key" || exit $?
 				fi
+
 			) || return $?
 			;;
 
@@ -367,7 +247,6 @@ PixieColl()
 			# PixieColl "$1" _rm-at-key "${3-}" "${4-}" || return $?
 			;;
 
-		# TODO: allow user to only get specified key, with no siblings
 		# my_var get 'a b' 2
 		get | g | @)
 			(
@@ -376,7 +255,16 @@ PixieColl()
 				key=$(PixieColl % _normalise-key "${3-}" allow-empty) || exit $?
 				# allow empty int
 				depth="${4:-0}"
-				PixieIs unsigned-int "$4"
+
+				IFS=':' read -r min_depth max_depth <<-EOF
+					$(printf %s "$depth")
+				EOF
+				PixieIs unsigned-int "$min_depth" "$max_depth"
+				case "$depth" in
+				*:) max_depth=0 ;;
+				*:*) : ;;
+				*) max_depth="$min_depth" ;;
+				esac
 
 				if test "$1" = "-"; then
 					obj=$(cat)
@@ -384,21 +272,21 @@ PixieColl()
 					eval obj=\$"$1"
 				fi
 				# last key is int and is 0
-				if
-					test -n "$ARGUS_NILIST" \
-						&& rkey=$(PixieColl % _if-last-key-is-int-remove-it "$key") \
-						&& awk -v key="$key" 'BEGIN { $0 = key; if ($NF != 0) {exit 1} }'
-				then
-					regex="^${rkey}[-]?[0-9]+[[:blank:]]"
-					printf '%s' "$obj" | grep -E "$regex" | tail -n1 | awk '{print} END { exit !NR }' || exit $?
+
+				# 0:0 -> no depth
+				if test "$((min_depth + max_depth))" -eq 0; then
+					printf '%s' "$obj" | grep -E "^$key" || exit $?
 				else
-					if test "$depth" -eq 0; then
-						printf '%s' "$obj" | grep -E "^$key" || exit $?
-					else
-						# if(NF == KEYL && index($0, KEY) == 1) {
-						printf '%s' "$obj" | awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v DEPTH="$depth" \
-							'{if($0 ~ ("^" KEY) && NF == (DEPTH + 1)) {print}}'
-					fi
+					printf '%s' "$obj" \
+						| awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v MIN="$min_depth" -v MAX="$max_depth" \
+							'{
+									if(MAX > 0) {
+										if(NF >= (MIN + 1) && NF <= (MAX + 1) && index($0, KEY) == 1){ print }
+									}
+									else {
+										if(NF >= (MIN + 1) && index($0, KEY) == 1){ print }
+									}
+								}'
 				fi
 			) || return $?
 			;;
@@ -406,12 +294,8 @@ PixieColl()
 		# my_var get-value 'a'
 		get-value | v | @v)
 			(
-				# TODO: calculate keys before out, and send it to PixieColl as the depth argument
-				out=$(PixieColl "${1-}" get "${3-}" 0) || exit $?
 				keys=$(printf '%s' "$3" | awk '{print NF}')
-
-				# if(NF == KEYL && index($0, KEY) == 1) {
-				printf %s "$out" | awk -v rkey="$3" -v keys="$keys" -v FS='\t' '{if (NF == keys+1 || rkey == "") { print $NF }} END { exit !NR }' || exit $?
+				PixieColl "${1-}" get "${3-}" "$keys" | awk -v FS='\t' '{print $NF}' || exit $?
 			) || return $?
 			;;
 
@@ -450,40 +334,6 @@ PixieColl()
 			(
 				out=$(PixieColl "$1" get "${3-}" "${4:-0}") || exit $?
 				printf %s "$out" | awk '{print NR} END { exit !NR }' || exit $?
-			) || return $?
-			;;
-
-		pack-ilist | pack)
-			test "$ARGUS_NILIST" || return 1
-			PixieAssign if-fn "$1" PixieColl "$1" _pack-ilist "${3-}" || return $?
-			;;
-
-		_pack-ilist)
-			(
-				key=$(PixieColl % _normalise-key "$3") || exit $?
-
-				eval obj=\$"$1"
-				keys=$(printf '%s' "$key" | tr "$TABULATOR" "$NEWLINE" | wc -l)
-				ffkey=$((keys + 1))
-				sfkey=$((keys + 2))
-				# match key that are followed by an int
-				regex="^${key}[-]?[0-9]+[[:blank:]]"
-
-				# filter and sort out fields to enumerate
-				enumerate=$(printf '%s' "$obj" | grep -E "$regex" | sort -nk$ffkey)
-				printf '%s' "$enumerate" | awk -v ffkey="$ffkey" -v sfkey="$sfkey" -v FS='\t' -v OFS='\t' \
-					'# init enumerator, previous, current & current next column
-					BEGIN { e=0; pcol=e; ccol=e; cncol=e; }
-					{
-						ccol=$(ffkey);
-						cncol=$(sfkey);
-						# if first run OR ccol > pcol OR next cncol is non int
-						if(e == 0 || ccol > pcol || cncol !~ /^[0-9]+$/ ) { e=e+1 };
-						$(ffkey)=e; pcol=ccol; print
-					}'
-
-				# filter out fields not to enumurate
-				printf '%s' "$obj" | grep -vE "$regex"
 			) || return $?
 			;;
 		*)

@@ -36,6 +36,14 @@ PixieIs()
 			shift
 		done
 		;;
+	visible)
+		shift
+		while test "$#" -gt 0; do
+			printf %s "$1" | tr -d '[:space:]' | test -n "$(cat)" || return $?
+			shift
+		done
+
+		;;
 	unsigned-int)
 		shift
 		while test $# -gt 0; do

@@ -32,13 +32,13 @@ loop()
 
 nloop()
 {
-	PixieArgs kv-to-var "$@" __nloop_
-	while IFS='' read -r "${__nloop_var:-entry}"; do
-		"${__nloop_fn:-_}"
+	PixieArgs kv-to-var "$@" __pixie_nloop_
+	while IFS='' read -r "${__pixie_nloop_var:-entry}"; do
+		"${__pixie_nloop_fn:-_}"
 	done <<-EOF
-		$(printf '%s\n' "$__nloop_list")
+		$(printf '%s\n' "$__pixie_nloop_list")
 	EOF
-	unset __nloop_var __nloop_list __nloop_fn
+	unset __pixie_nloop_var __pixie_nloop_list __pixie_nloop_fn
 }
 
 prnl()

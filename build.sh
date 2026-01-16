@@ -9,6 +9,12 @@ for el in ./*.sh; do
 	. "$el"
 done
 
+here legal <<-'EOF'
+	# SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
+	# SPDX-License-Identifier: MIT
+	# Version: 0.0.1-alpha
+EOF
+
 build()
 (
 	PixieArgs kv-to-var "$@" _
@@ -38,8 +44,8 @@ build()
 		target="../../autolib/$_lib"
 	fi
 
-	awk '{
-		if(NR==1 && /^#!/) {SB=$0; print}
+	awk -v LEGAL="$legal" '{
+		if(NR==1 && /^#!/) {SB=$0; printf "%s\n%s\n", $0, LEGAL }
 		# if($0 != SB) {print}
 		if(NR>1 && $0 !~ /^[[:blank:]]*#/) {print}
 	}' "$@" | tee "$target" >/dev/null

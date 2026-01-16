@@ -45,5 +45,6 @@ Coll my_coll rm-at 'status reactor' 0
 Coll my_coll add-at 'status reactor' 0 'false'
 
 Coll my_coll get 'status reactor' 2 | awk '{printf substr($NF, 0, 1)}' | test "$(cat)" = 'ftff'
+Coll my_coll get-value 'status reactor' | awk '{printf substr($NF, 0, 1)}' | test "$(cat)" = 'ftff'
 
-Coll my_coll get-value 'status reactor' # | Coll - get
+Coll my_coll get 'status' 2:3 | test "$(wc -l)" -eq 14
