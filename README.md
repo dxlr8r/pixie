@@ -40,10 +40,10 @@ PixieMath + 4 4
 
 Below is a list of all available functions:
 
--	+ | add | sum
--	- | sub | substract
+-	`+` | add | sum
+-	`-` | sub | substract
 -	/ | div | divide
--	'*' | x | mul | multiply
+-	`*` | x | mul | multiply
 -	% | mod | modulo
 -	avg | average
 -	max | maximum
