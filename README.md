@@ -13,7 +13,11 @@ Pixie greatest hits:
 - convenient math function
 - provide examples and best practices
 
-Some examples:
+# Download
+
+Download `autolib/pixie.sh`
+
+# Examples
 
 ## Math
 
