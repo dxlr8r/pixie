@@ -59,7 +59,7 @@ prn()
 	prnl "$@" | paste -sd' '
 }
 
-rand()
+random()
 (
 	set -- "${1:-8}"
 	buf=''
@@ -94,6 +94,7 @@ rand()
 
 	printf '%.*s' "$1" "$buf"
 )
+alias rand=random
 
 if ! which seq >/dev/null; then
 	seq()
