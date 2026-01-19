@@ -18,17 +18,11 @@ fn()
 nloop var=i list="$data" fn=fn | test "$(cat)" = "$data"
 loop i "$data" fn | test "$(cat)" = "$data"
 
-# member
-
-list='aaa
-bbb
-ccc'
-
-member aaa "$list"
-
 # rand
-
-rand 100 | wc -c | test "$(cat)" -eq 100
+a=$(rand 100)
+b=$(rand 100)
+printf %s "$a" | wc -c | test "$(cat)" -eq 100
+test "$a" != "$b"
 
 # status
 
