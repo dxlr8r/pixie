@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-FileCopyrightText: 2022-2026 Simen Strange <https://github.com/dxlr8r/pixie>
 # SPDX-License-Identifier: MIT
-# Version: 0.0.1-beta
+# Version: 0.0.2-beta
 
 PIXIE_SOURCED=true
 
@@ -238,7 +238,7 @@ PixieIs()
 			done
 		) || return $?
 		;;
-	is-populated)
+	populated)
 		shift
 		while test "$#" -gt 0; do
 			test "$1" || return $?
@@ -273,6 +273,9 @@ PixieIs()
 			esac
 			shift
 		done
+		;;
+	*)
+		return 1
 		;;
 	esac
 }

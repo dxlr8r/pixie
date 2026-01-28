@@ -4,8 +4,7 @@ set -e
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 . ../../autolib/min/coll.sh
 
-# Coll my_coll add
-
+# add
 here my_import <<EOF
 name;Argus Array
 description type;Subspace telescope
@@ -34,17 +33,42 @@ done <<-EOF
 	$(printf '%s\n' "$my_import")
 EOF
 
-# Coll my_coll get | nl -n rn -w2
-
-# Coll my_coll {add,rm}-at
-Coll my_coll rm-at 'status reactor' 1
-Coll my_coll add-at 'status reactor' 1 'false'
+# add-at rm-at
+Coll my_coll rm-at-key 'status reactor' 1
+Coll my_coll add-value-at 'status reactor' 1 'false'
 Coll my_coll rm-at 'status reactor' 2
 Coll my_coll add-at 'status reactor' 2 'true'
-Coll my_coll rm-at 'status reactor' 0
-Coll my_coll add-at 'status reactor' 0 'false'
+Coll my_coll -i 'status reactor' 0
+Coll my_coll +i 'status reactor' 0 'false'
 
-Coll my_coll get 'status reactor' 2 | awk '{printf substr($NF, 0, 1)}' | test "$(cat)" = 'ftff'
-Coll my_coll get-value 'status reactor' | awk '{printf substr($NF, 0, 1)}' | test "$(cat)" = 'ftff'
+# get get-value
+Coll my_coll get 'status reactor' 2 | awk '{printf substr($NF, 0, 1)}' | grep -Fxq 'ftff'
+Coll my_coll get-value 'status reactor' | awk '{printf substr($NF, 0, 1)}' | grep -Fxq 'ftff'
 
+# get with depth
 Coll my_coll get 'status' 2:3 | test "$(wc -l)" -eq 14
+
+# rm-key with depth
+Coll my_coll rm-key 'status reactor' 2
+Coll my_coll get-value 'status reactor temperatur' | test "$(cat)" -eq 200
+
+# rmx-value
+Coll my_coll rmx-value 'status reactor client' '^T'
+Coll my_coll get-value 'status reactor client' | grep -Fxq 'Shuttlebay 2'
+
+# rm-value
+Coll my_coll rm-value 'status reactor client' 'Shuttlebay 2'
+Coll my_coll get-value 'status reactor client' || {
+	ret=$?
+}
+test "$ret" -eq 1
+
+# get-pair
+Coll my_coll get-pair 'status' \
+	| sort -u | tr "$NEWLINE" : | grep -Fxq 'dilithium_reserves:reactor:'
+
+# get-tail
+Coll my_coll get-tail 'status reactor' | test "$(wc -l)" -eq 3
+
+# get-enumerated
+Coll my_coll get-enumerated 'status reactor' 3 | test "$(cat)" = "$(seq 1 3)"

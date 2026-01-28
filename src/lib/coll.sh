@@ -41,6 +41,26 @@ PixieColl()
 			) || return $?
 			;;
 
+		gen-min-and-max-depth)
+			shift
+			(
+				# allow empty int
+				depth="${1:-0}"
+
+				IFS=':' read -r min_depth max_depth <<-EOF
+					$(printf %s "$depth")
+				EOF
+
+				case "$depth" in
+				*:) max_depth=0 ;;
+				*:*) : ;;
+				*) max_depth="$min_depth" ;;
+				esac
+				PixieIs unsigned-int "$min_depth" "$max_depth" || exit 1
+
+				printf '%s:%s' "$min_depth" "$max_depth"
+			) || return $?
+			;;
 		# like grep -v, but more suited handling of exit signals
 		_grepv)
 			shift
@@ -187,7 +207,7 @@ PixieColl()
 		# my_var rm_key 'a'
 		rm-key | -)
 			PixieIs variable-name "${1-}" || return $?
-			PixieAssign if-fn "$1" PixieColl "$1" _rm-key "${3-}" || return $?
+			PixieAssign if-fn "$1" PixieColl "$1" _rm-key "${3-}" "${4-}" || return $?
 			;;
 
 		_rm-key)
@@ -196,10 +216,29 @@ PixieColl()
 
 				eval obj=\$"$1"
 
-				if test -n "$obj"; then
-					printf '%s' "$obj" | PixieColl % _grepv E "^$key" || exit $?
-				fi
+				IFS=':' read -r min_depth max_depth <<-EOF || exit $?
+					$(PixieColl % gen-min-and-max-depth "$4")
+				EOF
 
+				if test "$((min_depth + max_depth))" -eq 0; then
+					# printf '%s' "$obj" | grep -E "^$key" || exit $?
+					printf '%s' "$obj" | PixieColl % _grepv E "^$key" || exit $?
+				else
+					printf '%s' "$obj" \
+						| awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v NEEDLE='0' \
+							-v MIN="$min_depth" -v MAX="$max_depth" \
+							'{
+									if(MAX > 0) {
+										if(NF >= (MIN + 1) && NF <= (MAX + 1) && index($0, KEY) == 1){ NEEDLE=1 }
+										else { print }
+									}
+									else {
+										if(NF >= (MIN + 1) && index($0, KEY) == 1){ NEEDLE=1 }
+										else { print }
+									}
+								}
+								END { exit !NEEDLE }' || exit $?
+				fi
 			) || return $?
 			;;
 
@@ -230,13 +269,21 @@ PixieColl()
 		_rmx-value)
 			(
 				key=$(PixieColl % _normalise-key "$3") || exit $?
-				PixieIs is-populated "$4" || exit $?
+				PixieIs populated "$4" || exit $?
 
 				eval obj=\$"$1"
-				value=$(printf '%s' "$4" | sed 's/\\/\\&/g')
+				re_val=$(printf '%s' "$4" | sed 's/\\/\\&/g')
 
-				# printf '%s' "$obj" | grep -vE "^${key}${value}\$"
-				printf '%s' "$obj" | PixieColl % _grepv E "^${key}${value}\$" || exit $?
+				printf '%s' "$obj" | awk -v FS='\t' -v OFS='\t' \
+					-v KEY="$key" -v RE_VAL="$re_val" -v NEEDLE='0' '
+					BEGIN {
+						KEYL = split(KEY, _)
+					}
+					{
+						if(NF == KEYL && index($0, KEY) == 1 && $NF ~ RE_VAL) { NEEDLE=1 }
+						else { print }
+					}
+					END { exit !NEEDLE }' || exit $?
 			) || return $?
 			;;
 
@@ -253,18 +300,10 @@ PixieColl()
 				PixieIs variable-name "${1-}" || test "${1-}" = '-' || exit $?
 				# allow empty key
 				key=$(PixieColl % _normalise-key "${3-}" allow-empty) || exit $?
-				# allow empty int
-				depth="${4:-0}"
 
-				IFS=':' read -r min_depth max_depth <<-EOF
-					$(printf %s "$depth")
+				IFS=':' read -r min_depth max_depth <<-EOF || exit $?
+					$(PixieColl % gen-min-and-max-depth "${4-}")
 				EOF
-				PixieIs unsigned-int "$min_depth" "$max_depth"
-				case "$depth" in
-				*:) max_depth=0 ;;
-				*:*) : ;;
-				*) max_depth="$min_depth" ;;
-				esac
 
 				if test "$1" = "-"; then
 					obj=$(cat)
@@ -278,15 +317,21 @@ PixieColl()
 					printf '%s' "$obj" | grep -E "^$key" || exit $?
 				else
 					printf '%s' "$obj" \
-						| awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v MIN="$min_depth" -v MAX="$max_depth" \
-							'{
+						| awk -v FS='\t' -v OFS='\t' -v KEY="$key" -v NEEDLE='0' \
+							-v MIN="$min_depth" -v MAX="$max_depth" '
+								{
 									if(MAX > 0) {
-										if(NF >= (MIN + 1) && NF <= (MAX + 1) && index($0, KEY) == 1){ print }
+										if(NF >= (MIN + 1) && NF <= (MAX + 1) && index($0, KEY) == 1) {
+											NEEDLE=1; print
+										}
 									}
 									else {
-										if(NF >= (MIN + 1) && index($0, KEY) == 1){ print }
+										if(NF >= (MIN + 1) && index($0, KEY) == 1) {
+											NEEDLE=1; print
+										}
 									}
-								}'
+								}
+								END { exit !NEEDLE }' || exit $?
 				fi
 			) || return $?
 			;;
@@ -295,7 +340,8 @@ PixieColl()
 		get-value | v | @v)
 			(
 				keys=$(printf '%s' "$3" | awk '{print NF}')
-				PixieColl "${1-}" get "${3-}" "$keys" | awk -v FS='\t' '{print $NF}' || exit $?
+				PixieColl "${1-}" get "${3-}" "$keys" \
+					| awk -v FS='\t' '{print $NF} END {exit !NR}' || exit $?
 			) || return $?
 			;;
 
@@ -332,7 +378,7 @@ PixieColl()
 		# my_var get-enumerated 'a b' 2
 		get-enumerated | enum | @e)
 			(
-				out=$(PixieColl "$1" get "${3-}" "${4:-0}") || exit $?
+				out=$(PixieColl "$1" get "${3-}" "${4-}") || exit $?
 				printf %s "$out" | awk '{print NR} END { exit !NR }' || exit $?
 			) || return $?
 			;;

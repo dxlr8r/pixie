@@ -29,7 +29,7 @@ PixieIs()
 		) || return $?
 		;;
 	# if any argument is empty return 1
-	is-populated)
+	populated)
 		shift
 		while test "$#" -gt 0; do
 			test "$1" || return $?
@@ -64,6 +64,9 @@ PixieIs()
 			esac
 			shift
 		done
+		;;
+	*)
+		return 1
 		;;
 	esac
 }
