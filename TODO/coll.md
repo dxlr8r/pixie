@@ -91,3 +91,19 @@ Where `probes` can have multiple entries.
 Today `[0-9?]` are legal keys in and of itself. With this change it would have a special meaning and be off limit as a key name. In most object notations, having a key start with an integer is generally not allowed; neither is `?` anywhere in the keyname.
 
 What we describe above used to be an experiemental setting for coll's predecesor `argus`, by enabling "ARGUS_NILIST". All that code was removed from coll, but we might use it as a referance in the future.
+
+## Update: suggested solution, pseudo keys. For example:
+
+
+```
+items	:busybox	name	busybox
+items	:busybox	image	busybox:latest
+items	:busybox	replicas	1
+items	:nginx	name	nginx
+items	:nginx	image	nginx:latest
+items	:nginx	replicas	2
+```
+
+With this notation, any converter can see that keys prefixed with `:` is an key array selector, meaning that key indicates list/array entry, which the converter can enumerate upon. The naming of the pseudo key itself it only an anchor.
+
+Then the question is, should be store the pseudo keys? Or should we enumerate in `coll` before we store it. Enumeration has cpu/mem cost, and would complicate the code base. So perhaps just leave it, and only use if you need to convert the object to json.
