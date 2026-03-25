@@ -694,13 +694,19 @@ PixieString()
 		if test "$#" -eq 0; then
 			set -- "$(cat)"
 		fi
-		while test "$#" -gt 0; do
-			if test -n "$1"; then
-				printf '%s_' "$1" | sed 's/\\/\\&/g' | awk -v RS='\t' -v ORS='\\t' 1 | awk -v ORS='\\n' 1 | awk '{ printf "%s", substr($0, 1, length($0)-5) }'
-			fi
-			shift
-			printf \\n
-		done
+		awk '
+	    BEGIN {
+	      for (i = 1; i < ARGC; i++) {
+	        s = ARGV[i]
+	        ARGV[i] = ""
+	        gsub(/\\/, "\\\\\\", s)
+	        gsub(/\t/, "\\t", s)
+	        gsub(/\n/, "\\n", s)
+	        print s
+	      }
+	      exit
+	    }
+	  ' "$@"
 		;;
 
 	unesc | unescape)
@@ -812,6 +818,7 @@ PixieText()
 			value=$__pixie_text_ensure_line_value
 
 			if printf %s\\n "$in" | grep -Fxq "$value"; then
+				printf %s\\n "$in"
 				exit 0
 			fi
 

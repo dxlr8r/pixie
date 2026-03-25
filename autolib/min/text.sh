@@ -192,6 +192,7 @@ PixieText()
 			value=$__pixie_text_ensure_line_value
 
 			if printf %s\\n "$in" | grep -Fxq "$value"; then
+				printf %s\\n "$in"
 				exit 0
 			fi
 

@@ -22,6 +22,7 @@ PixieText()
 
 			# if already defined, escape early
 			if printf %s\\n "$in" | grep -Fxq "$value"; then
+				printf %s\\n "$in"
 				exit 0
 			fi
 
